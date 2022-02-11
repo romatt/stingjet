@@ -11,7 +11,6 @@ library(lattice)
 root_path="/net/thermo/atmosdyn2/atroman/stingjet/20140211_12/"
 t1="20140212_00"
 t2="20140212_10"
-specific_cy=-999
 lonmin=-60
 lonmax=15
 dellon=0.25
