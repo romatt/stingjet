@@ -1,0 +1,44 @@
+#!/bin/bash
+## SCRIPT FOR IAC LINUX SYSTEMS
+# Run script to plot low-level APV rates
+
+. /etc/profile.d/modules.sh
+
+# Load modules
+module 'load ncl/6.4.0'
+module 'load dyn_tools'
+
+# This avoids useless output?
+shopt -s extglob
+
+# SETTINGS
+dir="/net/thermo/atmosdyn2/atroman/stingjet/20140211_12/"
+name="ATH12"
+
+# Region for 20140212_01
+date="20140212_01"
+export MINLAT=45
+export MAXLAT=53
+export MINLON=-25
+export MAXLON=-17
+
+# Region for 20140212_07
+# date="20140212_07"
+# export MINLAT=47
+# export MAXLAT=55
+# export MINLON=-17
+# export MAXLON=-9
+
+# Levels
+export L1=16
+export L2=26
+
+# Default settings
+export CST=${dir}/cdf/b0da_cst
+export PLOTTRA=0
+export DIR=$dir
+export FILE=${dir}/tra/${name}_${date}.nc
+export NAME=$name
+export DAT=$date
+
+ncl -n -Q plot_ath

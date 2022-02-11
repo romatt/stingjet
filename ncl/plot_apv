@@ -1,0 +1,686 @@
+; --------------- Load NCL libraries  ------------------------------
+load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/gsn_code.ncl"
+load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/gsn_csm.ncl"
+load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/contributed.ncl"
+load "$NCARG_ROOT/lib/ncarg/nclscripts/csm/shea_util.ncl"
+
+begin
+
+;***********************************************************************
+; Program to plot integrated heating rates on different levels
+; roman.attinger@env.ethz.ch
+;
+; Function definitions
+;***********************************************************************
+
+if isdefined("echo") then undef("echo") end if
+function echo(variable)
+  local variable2
+  begin
+  variable2 = variable
+  return variable2
+end ; echo
+
+function substring (instr[1]:string, first[1]:numeric, last[1]:numeric)
+local instr, first, last, main, p2
+begin
+   main = stringtochar (instr)		; convert input string to char array
+   if (last .ge. first) then		; check requested end position
+      p2 = last				        ; go to last position specified
+   else					            ; but if less than first:
+      p2 = dimsizes (main) - 2		; go to last avail char in main string
+   end if
+
+   return (chartostring (main(first:p2)))	; extract substring
+end ; substring
+
+;***********************************************************************
+; Settings
+;***********************************************************************
+
+minlat      = stringtoint(getenv("MINLAT"))
+maxlat      = stringtoint(getenv("MAXLAT"))
+minlon      = stringtoint(getenv("MINLON"))
+maxlon      = stringtoint(getenv("MAXLON"))
+l1		    = stringtoint(getenv("L1"))
+l2		    = stringtoint(getenv("L2"))
+centerlon   = 180
+
+dir         = getenv("DIR")
+date        = getenv("DAT")
+name        = getenv("NAME")
+in_apv      = getenv("FILE") 	; Accumulated PV/TH file
+in_pfile    = dir+"cdf/P"+date; P (primary)
+in_sfile    = dir+"cdf/S"+date
+cst_file    = getenv("CST")
+dir         = getenv("DIR")
+plottra     = stringtoint(getenv("PLOTTRA"))
+
+;***********************************************************************
+; Read data
+;***********************************************************************
+
+; In files
+
+print("")
+print("******** NCL ********")
+print("Plotting parameters")
+print("Date: "+date)
+print("Name: "+name)
+print("P file: "+in_pfile)
+print("S file: "+in_sfile)
+print("APV file: "+in_apv)
+print("cst file: "+cst_file)
+print("")
+
+; Add files
+pfile = addfile(in_pfile+".nc","r")
+sfile = addfile(in_sfile+".nc","r")
+afile = addfile(in_apv+".nc","r")
+cst   = addfile(cst_file+".nc","r")
+
+; Get the fields from the input files
+SLP         = pfile->SLP
+U           = pfile->U
+V           = pfile->V
+PS          = pfile->PS
+;PV          = sfile->PV
+THE         = sfile->THE
+PV_DIFF     = afile->PV_DIFF
+PVRTOT      = afile->APVTOT
+PVRLS       = afile->APVLS
+PVRRES      = afile->APVRES
+PVRTURBT    = afile->APVTURBT
+PVRTURBM    = afile->APVTURBM
+PVRCONVT    = afile->APVCONVT
+PVRCONVM    = afile->APVCONVM
+PVRLWH      = afile->APVLWH
+PVRLWC      = afile->APVLWC
+PVRSW       = afile->APVSW
+PVRCOND     = afile->APVCOND
+PVRDEP      = afile->APVDEP
+PVREVR      = afile->APVEVR
+PVRMELTS    = afile->APVMELTS
+PVRSUBS     = afile->APVSUBS
+PVRFRZ      = afile->APVFRZ
+PVRRIME     = afile->APVRIME
+WIND        = sqrt(U^2+V^2)
+
+; --------------- Add axes to fields -------------------------------
+; Get ak,bk - switch from upward to downward indices
+aklay = cst->aklay
+bklay = cst->bklay
+aklay = aklay(::-1)
+bklay = bklay(::-1)
+
+; Get the grid parameters
+lonmin = cst->lonmin
+lonmax = cst->lonmax
+latmin = cst->latmin
+latmax = cst->latmax
+dlon = cst->dellon
+dlat = cst->dellat
+
+dim    = dimsizes(THE)
+
+lat    = fspan(latmin,latmax,dim(2))
+lon    = fspan(lonmin,lonmax,dim(3))
+nx=dimsizes(lon)
+ny=dimsizes(lat)
+
+; Define the coordinate variables
+lon!0     = "lon"
+lat!0     = "lat"
+lon&lon   = lon
+lat&lat   = lat
+lon@units = "degrees-east"
+lat@units = "degrees-north"
+
+; Add the coordinate variables to the different fields
+THE!2   = "lat"
+THE!3   = "lon"
+THE&lon = lon
+THE&lat = lat
+THE@_FillValue = -999.99
+copy_VarMeta(THE,SLP)
+copy_VarMeta(THE,PS)
+copy_VarMeta(THE,WIND)
+
+THE@units = "K"
+PS@units = "hPa"
+SLP@units = "hPa"
+
+; SIMPLY SELECT SOME MODEL LEVELS, INSTEAD OF INTERPOLATING TO PRESSURE LEVELS!!
+;  PVonP       = PV(0,l1:l2,:,:)
+  PV_DIFFonP  = PV_DIFF(0,l1:l2,:,:)
+  PVRTOTonP   = PVRTOT(0,l1:l2,:,:)
+  PVRLSonP    = PVRLS(0,l1:l2,:,:)
+  PVRRESonP   = PVRRES(0,l1:l2,:,:)
+  PVRTURBTonP = PVRTURBT(0,l1:l2,:,:)
+  PVRTURBMonP = PVRTURBM(0,l1:l2,:,:)
+  PVRCONVTonP = PVRCONVT(0,l1:l2,:,:)
+  PVRCONVMonP = PVRCONVM(0,l1:l2,:,:)
+  PVRLWHonP   = PVRLWH(0,l1:l2,:,:)
+  PVRLWConP   = PVRLWC(0,l1:l2,:,:)
+  PVRSWonP    = PVRSW(0,l1:l2,:,:)
+  PVRCONDonP  = PVRCOND(0,l1:l2,:,:)
+  PVRDEPonP   = PVRDEP(0,l1:l2,:,:)
+  PVREVRonP   = PVREVR(0,l1:l2,:,:)
+  PVRMELTSonP = PVRMELTS(0,l1:l2,:,:)
+  PVRSUBSonP  = PVRSUBS(0,l1:l2,:,:)
+  PVRFRZonP   = PVRFRZ(0,l1:l2,:,:)
+  PVRRIMEonP  = PVRRIME(0,l1:l2,:,:)
+  WINDonP     = WIND(0,l1:l2,:,:)
+  
+
+ ; Average vertically
+  ;avgPVonP = dim_avg_n_Wrap(PVonP,0)
+  avgPV_DIFFonP = dim_avg_n_Wrap(PV_DIFFonP,0)
+  avgPVRTOTonP  = dim_avg_n_Wrap(PVRTOTonP,0)
+  avgPVRLSonP  = dim_avg_n_Wrap(PVRLSonP,0)
+  avgPVRRESonP  = dim_avg_n_Wrap(PVRRESonP,0)
+  avgPVRTURBTonP = dim_avg_n_Wrap(PVRTURBTonP,0)
+  avgPVRTURBMonP = dim_avg_n_Wrap(PVRTURBMonP,0)
+  avgPVRCONVTonP = dim_avg_n_Wrap(PVRCONVTonP,0)
+  avgPVRCONVMonP = dim_avg_n_Wrap(PVRCONVMonP,0)
+  avgPVRLWHonP   = dim_avg_n_Wrap(PVRLWHonP,0)
+  avgPVRLWConP   = dim_avg_n_Wrap(PVRLWConP,0)
+  avgPVRSWonP   = dim_avg_n_Wrap(PVRSWonP,0)
+  avgPVRCONDonP   = dim_avg_n_Wrap(PVRCONDonP,0)
+  avgPVRDEPonP  = dim_avg_n_Wrap(PVRDEPonP,0)
+  avgPVREVRonP  = dim_avg_n_Wrap(PVREVRonP,0)
+  avgPVRMELTSonP = dim_avg_n_Wrap(PVRMELTSonP,0)
+  avgPVRSUBSonP = dim_avg_n_Wrap(PVRSUBSonP,0)
+  avgPVRFRZonP = dim_avg_n_Wrap(PVRFRZonP,0)
+  avgPVRRIMEonP = dim_avg_n_Wrap(PVRRIMEonP,0)
+  avgWINDonP    = dim_avg_n_Wrap(WINDonP,0)
+    
+  avgPVRCONV = avgPVRCONVTonP + avgPVRCONVMonP
+  avgPVRTURB = avgPVRTURBTonP + avgPVRTURBMonP
+  avgPVRRAD = avgPVRLWHonP + avgPVRLWConP + avgPVRSWonP
+
+  copy_VarCoords(avgPVRRIMEonP,avgPVRCONV)
+  copy_VarCoords(avgPVRRIMEonP,avgPVRTURB)
+  copy_VarCoords(avgPVRRIMEonP,avgPVRRAD)
+  
+
+  ; Save all averages in this large array
+  avgALLonP = new((/21,45,93/),"float") ; FOR STING JET REGION
+  avgALLonP(0,:,:)=avgPV_DIFFonP
+  avgALLonP(1,:,:)=avgPVRTOTonP
+  avgALLonP(2,:,:)=avgPVRRESonP
+  avgALLonP(3,:,:)=avgPVRTURBTonP
+  avgALLonP(4,:,:)=avgPVRTURBMonP
+  avgALLonP(5,:,:)=avgPVRCONVTonP
+  avgALLonP(6,:,:)=avgPVRCONVMonP
+  avgALLonP(7,:,:)=avgPVRLWHonP
+  avgALLonP(8,:,:)=avgPVRLWConP
+  avgALLonP(9,:,:)=avgPVRSWonP
+  avgALLonP(10,:,:)=avgPVRCONDonP
+  avgALLonP(11,:,:)=avgPVRDEPonP
+  avgALLonP(12,:,:)=avgPVRLSonP
+  avgALLonP(13,:,:)=avgPVREVRonP
+  avgALLonP(14,:,:)=avgPVRRAD
+  avgALLonP(15,:,:)=avgPVRMELTSonP
+  avgALLonP(16,:,:)=avgPVRSUBSonP
+  avgALLonP(17,:,:)=avgPVRFRZonP
+  avgALLonP(18,:,:)=avgPVRRIMEonP
+  avgALLonP(19,:,:)=avgPVRCONV
+  avgALLonP(20,:,:)=avgPVRTURB
+
+  ; Define variables
+  vars=new((/21/),"string") 
+  vars(0)="PVDIFF"
+  vars(1)="PVRTOT"
+  vars(2)="PVRRES"
+  vars(3)="PVRTURBT"
+  vars(4)="PVRTURBM"
+  vars(5)="PVRCONVT"
+  vars(6)="PVRCONVM"
+  vars(7)="PVRLWH"
+  vars(8)="PVRLWC"
+  vars(9)="PVRSW"
+  vars(10)="PVRCOND"
+  vars(11)="PVRDEP"
+  vars(12)="PVRLS"
+  vars(13)="PVREVR"
+  vars(14)="PVRRAD"
+  vars(15)="PVRMELTS"
+  vars(16)="PVRSUBS"
+  vars(17)="PVRFRZ"
+  vars(18)="PVRRIME"
+  vars(19)="PVRCONV"
+  vars(20)="PVRTURB"
+
+  titles=new((/21/),"string")
+  titles(0)="PV DIFF on L"
+  titles(1)="PVR TOT on L"
+  titles(2)="PVR RES on L"
+  titles(3)="PVR TURBT on L"
+  titles(4)="PVR TURBM on L"
+  titles(5)="PVR CONVT on L"
+  titles(6)="PVR CONVM on L"
+  titles(7)="PVR LWH on L"
+  titles(8)="PVR LWC on L"
+  titles(9)="PVR SW on L"
+  titles(10)="PVR COND on L"
+  titles(11)="PVR DEP on L"
+  titles(12)="PVR LS on L"
+  titles(13)="PVR EVR on L"
+  titles(14)="PVR RAD on L"
+  titles(15)="PVR MELTS on L"
+  titles(16)="PVR SUBS on L"
+  titles(17)="PVR FRZ on L"
+  titles(18)="PVR RIME on L"
+  titles(19)="PVR CONV on L"
+  titles(20)="PVR TURB on L"
+
+;plotvars=(/1,3,7,8/)
+;do v=0,3
+;var=plotvars(v)
+
+; Loop over all variables
+do var=0,20
+ 
+  plotvar=vars(var)
+  title=titles(var)
+
+; --------------- Open a workspace ----------------------------------
+
+; Open X11 workspace; otherwise choose 'pdf' or 'ps'
+wks  = gsn_open_wks("pdf",name+"_"+date+"_"+plotvar)
+
+; Set the colormap associated with the workspace
+; Define the IACETH color map for PV
+cmap = (/ (/255, 255,  255/), \
+          (/  0,   0,    0/), \
+          (/ 63, 107,  86/), \
+          (/ 38, 130,  96/), \
+          (/  0, 158,  30/), \
+          (/  0, 188,  61/), \
+          (/ 68, 201, 140/), \
+          (/ 51, 221, 168/), \
+          (/ 22, 219, 237/), \
+          (/ 33, 204, 237/), \
+          (/ 25, 173, 237/), \
+          (/ 25, 145, 249/), \
+          (/  0,  20, 255/), \
+          (/102, 109, 247/), \
+          (/127, 150, 255/), \
+          (/  3,  97, 195/), \ ; 1
+          (/181, 201, 255/), \ ; 2
+          (/214, 226, 237/), \ ; 3
+          (/242, 221, 160/), \ ; 4
+          (/239, 193, 130/), \ ; 5
+          (/242, 141,  83/), \ ; 6
+          (/255,  55,   0/), \ ; 7 dark orange: 1PVU
+          (/255, 102,   7/), \ ; 8
+          (/255, 190,  20/), \ ; 9
+          (/255, 249,  20/), \ ; 10
+          (/170, 255,  60/), \ ; 11
+          (/120, 200,  80/), \
+          (/254, 254, 174/), \
+          (/231, 246, 159/), \
+          (/203, 228, 128/), \
+          (/172, 206, 100/), \
+          (/125, 190,  84/), \
+          (/ 80,  80,  80/) /) / 255.
+
+cmap2 = (/  (/ 255., 255.,  255. /),    \  ; 0 - White background.
+            (/ 0., 0.,  0. /),    \  ; 1 - Black foreground.
+            (/ 130., 10., 42. /), \  ; 2 - Red. (/ 0.8,0.06,0.6 /)   (/ 1.,0.08,0.58 /)  (/ 0.757, 0.196, 1.0/)
+            (/ 25., 25.,  112. /),    \  ; 3 - Blue.
+            (/ 0., 1.,  1. /),    \  ; 4 - Cyan.
+            (/ 1., 0.,  1. /)  /) / 255.   ; 5 - Magenta.
+
+
+cmap3 = read_colormap_file("cmp_flux")
+
+cmap_custom=new((/23,4/),float)
+cmap_custom(0:10,:)=cmap3(0:10,:)
+cmap_custom(11,:)=(/1,1,1,1/)
+cmap_custom(12:22,:)=cmap3(11:21,:)
+
+gsn_define_colormap(wks,cmap2)
+
+cmap4 = read_colormap_file("MPL_PiYG")
+cmap4 = cmap4(::-1,:) ; Reverse color bar
+
+cmap_apv = read_colormap_file("MPL_RdBu")
+cmap_apv(62:65,:)=(/(/1,1,1,1/),(/1,1,1,1/),(/1,1,1,1/),(/1,1,1,1/)/)
+
+;***********************************************************************
+; Plotting resources
+;***********************************************************************
+
+; ****************************** Main plot *****************************
+res                             = True
+res@gsnDraw      	            = False                 ; do not draw the plot
+res@gsnFrame                    = False                 ; do not advance the frame
+res@gsnMaximize                 = False
+res@gsnPaperOrientation         = "landscape"
+res@gsnAddCyclic                = False
+res@gsnStringFontHeightF        = 0.013
+res@gsnRightString              = date
+res@gsnLeftString               = title+" ["+l1+":"+l2+"]"
+
+; For Lambert Conformal Plots
+;res@tmXBLabelFontHeightF        = 0.013
+;res@tmYLLabelFontHeightF        = 0.013
+;res@gsnMaskLambertConformal     = True
+;res@mpProjection                = "LambertConformal"
+;res@mpLambertMeridianF          = centerlon        ; central meridian
+;res@mpLambertParallel1F         = 33.0         ; two parallels
+;res@mpLambertParallel2F         = 45.0
+
+;res@mpLimitMode                 = "LatLon"
+res@mpMinLatF                   = minlat
+res@mpMaxLatF                   = maxlat
+res@mpMinLonF                   = minlon
+res@mpMaxLonF                   = maxlon
+res@mpCenterLonF	            = centerlon
+res@mpGridAndLimbOn	            = True
+res@mpGridLineColor	            = (/.3, .3, .3/)
+res@mpGridLineDashPattern       = 2
+res@mpGridSpacingF	            = 10.
+res@mpGeophysicalLineColor      = 1
+res@mpFillOn                    = False
+res@mpGeophysicalLineThicknessF = 1.
+res@mpOutlineOn                 = True
+res@mpDataBaseVersion           = "MediumRes"
+
+; Contour Resources
+; res@cnFillPalette               = "cmp_b2r"
+res@cnFillPalette               = cmap_apv(::-1,:)
+; res@cnFillPalette               = "MPL_RdGy"
+; res@cnFillPalette               = cmap4
+res@cnFillOpacityF              = 1.0
+res@cnFillOn                    = True
+res@cnLinesOn                   = False                    ; turn off contour lines
+res@cnLineLabelsOn              = False                    ; turn off contour line labels
+res@cnLevelSelectionMode        = "ExplicitLevels"         ; contour range set manually
+;res@cnLevels                    =  (/ -10,-7.5,-5.0,-2.5,-2.0,-1.5,-1.0,-0.6,-0.2,0.2,0.6,1.0,1.5,2.0,2.5,5.0,7.5,10/)
+; res@cnLevels                    =  (/ -3,-2.5,-2,-1.5,-1,-0.8,-0.6,-0.4,-0.2,0.2,0.4,0.6,0.8,1,1.5,2,2.5,3/)
+res@cnLevels                    =  (/ -5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1,-0.8,-0.6,-0.4,-0.2,0.2,0.4,0.6,0.8,1,1.5,2,2.5,3,3.5,4,4.5,5/)
+
+res@cnInfoLabelOn               = False
+
+;res@gsnSpreadColors            = True
+;res@gsnSpreadColorStart        = 14
+;res@gsnSpreadColorEnd          = 14+11
+;res@gsnMajorLonSpacing         = 20        ; change maj lat tm spacing
+
+res@pmTickMarkDisplayMode       = "Always"         ; turn on tickmarks
+res@tmYROn                      = False            ; turn off right labels
+res@tmXTOn                      = False            ; turn off top   labels
+res@tmXBLabelFontHeightF        = 0.010
+
+; Labelbar Resources
+res@lbLabelBarOn                = True
+res@lbTitleString               = "Accumulated PV Tendencies (PVU / 6h)"
+res@lbTitlePosition             = "Top"
+res@lbTitleDirection            = "Across"
+res@lbOrientation               = "horizontal"
+res@lbTitleFontHeightF          = 0.013                  ; font size of label bar title
+res@lbLabelFontHeightF          = 0.008
+
+; *************** Set resources for SLP plot ******************
+resb                           = True
+resb@gsnAddCyclic              = False
+resb@gsnFrame                  = False                  ; do not advance the frame
+resb@gsnDraw                   = False                  ; do not draw the plot
+
+resb@tiMainString              = ""                     ; no title
+
+resb@cnFillOn                  = False                  ; turn on color fill
+resb@cnLinesOn                 = True                   ; turn off contour lines
+resb@cnLevelSelectionMode      = "ExplicitLevels"       ; contour range set manually
+resb@cnLevels                  = ispan(950,1040,5)
+resb@cnInfoLabelOn             = False
+resb@cnInfoLabelOrthogonalPosF = 0.4                    ; push the InfoLabel down below the label bar
+resb@cnLineThicknessF          = 2
+resb@cnLineColor               = "thistle4"
+resb@cnLineLabelInterval       = 2                       ; labels for every line (default=2)
+resb@cnLineLabelFontHeightF    = 0.012
+resb@cnLineLabelFontColor      = "thistle4"
+resb@cnLineLabelPlacementMode  = "Computed"
+resb@cnLineLabelDensityF       = 0.5                     ; increase the number of line labels/line
+resb@cnLabelMasking            = True
+
+; *************** Set resources for 2PVU overlay ******************
+res2                           = True
+res2@gsnAddCyclic              = False
+res2@gsnFrame                  = False                  ; do not advance the frame
+res2@gsnDraw      	           = False
+res2@cnFillOn                  = False                  ; turn off color fill
+res2@cnLinesOn                 = True                   ; turn on contour lines
+res2@cnLevelSelectionMode      = "ExplicitLevels"       ; contour range set manually
+;res2@cnLevels                  = (/250./)
+res2@cnLevels                  = (/2./)
+res2@cnInfoLabelOn             = False
+res2@cnLineThicknessF          = 4
+res2@cnLineColor               = "mediumvioletred"
+res2@cnLineLabelsOn            = False                  ; turn off contour line labels
+
+; *************** Set resources for wind overlay ******************
+reswind                        = True
+reswind@gsnAddCyclic           = False
+reswind@gsnFrame               = False                  ; do not advance the frame
+reswind@gsnDraw      	       = False
+reswind@cnFillOn               = False                  ; turn off color fill
+reswind@cnLinesOn              = True                   ; turn on contour lines
+reswind@cnLevelSelectionMode   = "ExplicitLevels"       ; contour range set manually
+reswind@cnLevels               = (/46.,50/)
+reswind@cnInfoLabelOn          = False
+reswind@cnLineThicknessF       = 2
+reswind@cnLineColor            = "forestgreen"
+reswind@cnLineLabelsOn         = False                  ; turn off contour line labels
+
+; *************** Set resources for FRACTIONS ******************
+res3                           = True
+res3@gsnAddCyclic              = False
+res3@gsnFrame                  = False                  ; do not advance the frame
+res3@gsnDraw      	           = False
+res3@cnFillOn                  = True               ; color Fill
+res3@cnFillColors               = (/"transparent","darkgreen"/)  ; turn off color fill
+res3@cnLineColor               = "darkgreen"
+res3@cnFillPattern             = 17
+res3@cnFillScaleF              = 0.8
+res3@cnLinesOn                 = True                   ; turn on contour lines
+res3@cnLevelSelectionMode      = "ExplicitLevels"       ; contour range set manually
+res3@cnLevels                  = (/0.21/)
+res3@cnInfoLabelOn             = False
+res3@cnLineThicknessF          = 2
+
+; *************** Set resources for block contour ******************
+res4                           = True
+res4@gsnAddCyclic              = False
+res4@gsnFrame                  = False                  ; do not advance the frame
+res4@gsnDraw      	           = False
+res4@gsnLeftString             = ""
+res4@gsnRightString            = ""
+
+res4@cnFillOn                  = True               ; color Fill
+res4@cnFillColors              = (/"transparent","blue"/)
+;res4@cnFillMode                = "CellFill"       ; Raster Mode
+;res4@cnCellFillEdgeColor       = "black"
+res4@cnFillPattern             = 17
+res4@cnFillScaleF              = 0.8
+res4@cnLinesOn                 = True                   ; turn on contour lines
+res4@cnLevelSelectionMode      = "ExplicitLevels"       ; contour range set manually
+res4@cnLevels                  =  (/1.0/)
+res4@cnMonoLineColor           = True
+res4@cnLineColor               = "blue"
+res4@cnLineThicknessF          = 4
+res4@lbLabelBarOn              = False
+res4@cnInfoLabelOn             = False
+res4@cnLineLabelsOn            = False
+
+; *************** Set resources for -0.1 and 1 PVU Plot ******************
+res6                                = True
+res6@gsnAddCyclic                   = False
+res6@gsnFrame                       = False                  ; do not advance the frame
+res6@gsnDraw      	                = False
+res6@cnFillOn                       = False                  ; turn off color fill
+res6@cnLinesOn                      = True                   ; turn on contour lines
+res6@cnLevelSelectionMode           = "ExplicitLevels"       ; contour range set manually
+res6@cnLevels                       = (/-0.01/)
+res6@cnInfoLabelOn                  = False
+res6@cnLineThicknessF               = 3
+res6@cnLineColor                    = "Mediumblue"
+res6@cnLineLabelsOn                 = False                  ; turn off contour line labels
+res6@gsnContourNegLineDashPattern   = 2
+
+; *************** Set resources for CFRONT ******************
+resCF                           = True
+
+resCF@gsnAddCyclic              = False
+resCF@gsnFrame                  = False                  ; do not advance the frame
+resCF@gsnDraw      	            = False
+resCF@gsnLeftString             = ""
+resCF@gsnRightString            = ""
+
+resCF@cnLevelSelectionMode      = "ExplicitLevels"       ; contour range set manually
+resCF@cnLevels                  = (/1/)
+resCF@cnFillOn                  = False               ; color Fill
+resCF@cnFillPattern             = 17
+resCF@cnFillScaleF              = 0.8
+resCF@cnLinesOn                 = True                   ; turn on contour lines
+resCF@cnMonoLineColor           = True
+resCF@cnLineThicknessF          = 3
+resCF@cnInfoLabelOn             = False
+resCF@cnLineLabelsOn            = False
+;resCF@cnSmoothingOn 			      = True
+;resCF@cnSmoothingDistanceF 		  = 0.003
+;resCF@cnSmoothingTensionF 	    = -30
+resCF@lbLabelBarOn	            = False
+resCF@cnFillColors              = (/"transparent","midnightblue"/)
+; resCF@cnLineColor               = cmap2(3,:)
+resCF@cnLineColor               = "Mediumblue"
+
+; *************** Set resources for WFRONT ******************
+resWF                           = resCF
+resWF@cnFillColors              = (/"transparent","magenta"/)
+delete(resWF@cnLineColor)
+resWF@cnLineColor               = (/255, 36, 0/)/255
+
+; *************** Set resources for BBFRONT ******************
+resBBF                          = resCF
+resBBF@cnFillColors             = (/"transparent","mediumvioletred"/)
+delete(resBBF@cnLineColor)
+resBBF@cnLineColor              = "mediumvioletred"
+
+; *************** Set resources for CENTER ******************
+resCTR                          = resCF
+resCTR@cnFillColors             = (/"transparent","white"/)
+delete(resCTR@cnLineColor)
+resCTR@cnLineColor              = (/57,61,63/)/255.
+
+;***********************************************************************
+; Plot Figures
+;***********************************************************************
+
+; Define the coordinate variables
+lon2 = fspan(0,360,901)
+lat2 = fspan(0,90,226)
+lon2!0     = "lon2"
+lat2!0     = "lat2"
+lon2&lon2   = lon2
+lat2&lat2   = lat2
+lon2@units = "degrees-east"
+lat2@units = "degrees-north"
+
+; PLOT THE BASE FIELD
+
+plot1 = gsn_csm_contour_map_overlay(wks,avgALLonP(var,:,:),SLP(0,0,:,:),res,resb)
+plotwind = gsn_csm_contour(wks,avgWINDonP(:,:),reswind)       ; Wind
+overlay(plot1,plotwind)
+; ; Overlay absolute PV anomalies
+; plotcfpos   = gsn_csm_contour(wks,cfpos(:,:),resCF)         ; Cold Front
+; plotwfpos   = gsn_csm_contour(wks,wfpos(:,:),resWF)         ; Warm Front
+; plotccpos   = gsn_csm_contour(wks,ccpos(:,:),resCTR)        ; Bent Back Front
+; ;plotavgpv   = gsn_csm_contour(wks,avgPVonP(:,:),res6) ; overlay total PV rates
+; plotavgpv   = gsn_csm_contour(wks,cfneg(:,:),res6) ; overlay total PV rates
+; overlay(plot1,plotavgpv)
+; overlay(plot1,plotcfpos)
+; overlay(plot1,plotwfpos)
+; overlay(plot1,plotccpos)
+
+print("Plot "+plotvar+" done")
+
+;***********************************************************************
+; ADD LINES OF CROSS-SECTIONS & CYCLONE TRACK AND POSITION
+;***********************************************************************
+
+;plres@gsLineColor     = "green3"
+;plres@gsLineThicknessF = 8.0
+;plres@tfPolyDrawOrder = "Draw"  ; this can be used for polylines, polymarkers, or polygons
+
+; ATLANTIC::
+;lat1 = (/ 50, 42/) ; cold front
+;lon1 = (/-35.2,-20/)
+;lat2 = (/ 66.8, 56.8/) ; warm front
+;lon2 = (/-13.2,-10/)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;lat1 = (/ 53.5, 45.5/) ; cold front
+;lon1 = (/-35.2,-20/)
+;lat2 = (/ 66.8, 56.8/) ; warm front
+;lon2 = (/-16.0,-12/)
+;lat3 = (/ 43.6, 43.6/) ; center
+;lon3 = (/-32,-22/)
+
+; PACIFIC::
+;lat1 = (/ 60, 40/) ; cold front
+;lon1 = (/150,160/)
+;lat2 = (/ 45.2, 50.4/) ; warm front
+;lon2 = (/157,169.6/)
+;lat3 = (/ 56, 50/) ; center
+;lon3 = (/-180,-162/)
+;lat2 = (/ 50,40/) ; warm front
+;lon2 = (/-170,-160/)
+
+
+;lat3 = (/ 27, 27/) ; center
+;lon3 = (/135,150/)
+
+;dum1 = gsn_add_polyline(wks,plot1,lon1,lat1,gres)
+
+;dinimueter1 = gsn_add_polyline(wks,plot1,lon1,lat1,plres)
+;dum2 = gsn_add_polyline(wks,plot1,lon2,lat2,plres)
+;dum3 = gsn_add_polyline(wks,plot1,lon3,lat3,gres)
+
+
+;print(stringtofloat(cypos(0))+" "+stringtofloat(cypos(1)))
+
+plres = True       ; resources for polylines
+
+if(isdefined("cytrack"))
+; Add cyclone track to plot
+plres@gsLineThicknessF = 4.0
+plres@gsLineColor     = "black"
+;dum1 = gsn_add_polyline(wks,plot1,cytrack(:,0),cytrack(:,1),plres)
+end if
+
+if(isdefined("cypos"))
+; Add current position to plot
+plres@gsMarkerIndex = 5              ; choose circle as polymarker
+plres@gsMarkerSizeF = 18.0           ; select size to avoid streaking
+plres@gsMarkerThicknessF = 3.0
+plres@gsMarkerColor = (/"black"/)   ; choose color
+dum2 = gsn_add_polymarker(wks,plot1,stringtofloat(cypos(0)),stringtofloat(cypos(1)),plres)
+end if
+
+
+
+draw(plot1)
+
+frame(wks)
+
+;delete(pnew)
+
+delete([/plotvar,title/])
+
+end do ; loop over all variables
+
+end
