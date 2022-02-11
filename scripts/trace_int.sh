@@ -16,7 +16,7 @@
 module 'load dyn_tools'
 
 # this is where the start files are
-basedir="/net/thermo/atmosdyn2/atroman/stingjet/20140211_12/tra"
+basedir="/net/thermo/atmosdyn2/atroman/stingjet/fc/tra"
 cd $basedir
 
 startdate="20140212_00"
