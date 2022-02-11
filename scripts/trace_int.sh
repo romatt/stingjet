@@ -8,7 +8,7 @@
 #
 # WARNING: MAKE SURE TO UPDATE tracefast.sh WITH THE PROPER DOMAIN DIMENSIONS!!!
 # 
-# Updated on 23.03.2021
+# Updated on 11.02.2022
 
 . /etc/profile.d/modules.sh
 
@@ -30,22 +30,22 @@ for i in $(seq 0 10); do
 	
 	##### U,V,OMEGA #####
 
-	# ln -sf /home/atroman/projects/stingjet/scripts/tracevars tracevars
-	# trace tra_${t1}.3 traced_${t1}.3
+	ln -sf /home/atroman/projects/stingjet/scripts/tracevars tracevars
+	trace tra_${t1}.3 traced_${t1}.3
 	
 	# ##### TH #####
 
-	# ln -sf /home/atroman/projects/stingjet/scripts/tracevars_TH tracevars
-	# ~/tools/lagranto.ifs/tracefast/tracefast.sh tra_${t1}.3 tracedth_${t1}.3
-	# ~/tools/lagranto.hy/intslabtini/intslabtini.sh tracedth_${t1}.3 ATH12_${t1}.nc 12
-	# ~/tools/lagranto.hy/intslabtini/intslabtini.sh tracedth_${t1}.3 ATH6_${t1}.nc 6
+	ln -sf /home/atroman/projects/stingjet/scripts/tracevars_TH tracevars
+	trace tra_${t1}.3 tracedth_${t1}.3
+	~/tools/lagranto.hy/intslabtini/intslabtini.sh tracedth_${t1}.3 ATH12_${t1}.nc 12
+	~/tools/lagranto.hy/intslabtini/intslabtini.sh tracedth_${t1}.3 ATH6_${t1}.nc 6
 	
 	##### PV #####
 
 	ln -sf /home/atroman/projects/stingjet/scripts/tracevars_PV tracevars
 	trace tra_${t1}.3 tracedpv_${t1}.3
 	reformat tracedpv_${t1}.3 tracedpv_${t1}.1
-	#~/tools/lagranto.hy/intslabtini/intslabtini.sh tracedpv_${t1}.3 APV12_${t1}.nc 12	
-	# ~/tools/lagranto.hy/intslabtini/intslabtini.sh tracedpv_${t1}.3 APV6_${t1}.nc 6
+	~/tools/lagranto.hy/intslabtini/intslabtini.sh tracedpv_${t1}.3 APV12_${t1}.nc 12	
+	~/tools/lagranto.hy/intslabtini/intslabtini.sh tracedpv_${t1}.3 APV6_${t1}.nc 6
 	
 done
